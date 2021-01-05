@@ -67,6 +67,94 @@ class Spectrum(object):
         """ Compute total variance from spectrum """
         self.var = self.df*self.spec[1:].sum()  # do not consider zeroth frequency
 
+class CO_TWODimensional_spec(object):
+    """ A class that represent a two dimensional co-spectrum
+            for real signals """
+
+    def __init__(self,phi1,phi2, d1,d2,detrend=True):
+
+        self.phi1 = phi1  # two dimensional real field
+        self.phi2 = phi2
+        self.d1 = d1 #assumes same dimensions for phi1 and phi2
+        self.d2 = d2
+        print(phi1.shape)
+        #self.n2 = np.size(phi, axis=0)
+        #self.n1 = np.size(phi, axis=1)
+        self.n2,self.n1 = phi1.shape
+        self.L1 = d1*self.n1
+        self.L2 = d2*self.n2
+
+        if detrend:
+            self.phi1 = signal.detrend(self.phi1,axis=(-1),type='linear')
+            self.phi1 = signal.detrend(self.phi1,axis=(-2),type='linear')
+            self.phi2 = signal.detrend(self.phi2,axis=(-1),type='linear')
+            self.phi2 = signal.detrend(self.phi2,axis=(-2),type='linear')
+        else:
+            pass
+
+        win1 =  np.hanning(self.n1)
+        win1 =  np.sqrt(self.n1/(win1**2).sum())*win1
+        win2 =  np.hanning(self.n2)
+        win2 =  np.sqrt(self.n2/(win2**2).sum())*win2
+
+        win = win1[np.newaxis,...]*win2[...,np.newaxis]
+
+        self.phi1 *= win
+        self.phi2 *= win
+
+        # test eveness
+        if (self.n1 % 2):
+            self.n1even = False
+        else: self.n1even = True
+
+        if (self.n2 % 2):
+            self.n2even = False
+        else: self.n2even = True
+
+        # calculate frequencies
+        self.calc_freq()
+
+        # calculate spectrum
+        self.calc_cospectrum()
+
+        # calculate total var
+        #self.calc_var()
+
+        # calculate isotropic spectrum
+        #self.calc_ispec()
+
+        self.ki,self.ispec =  calc_ispec(self.k1,self.k2,self.cospec)
+
+        self.cospec =  np.fft.fftshift(self.cospec,axes=0)
+
+    def calc_freq(self):
+        """ calculate array of spectral variable (frequency or
+                wavenumber) in cycles per unit of L """
+
+        # wavenumber one (equals to dk1 and dk2)
+        self.dk1 = 1./self.L1
+        self.dk2 = 1./self.L2
+
+        # wavenumber grids
+        self.k2 = self.dk2*np.append( np.arange(0.,self.n2/2), \
+                  np.arange(-self.n2/2,0.) )
+        self.k1 = self.dk1*np.arange(0.,self.n1/2+1)
+
+        self.kk1,self.kk2 = np.meshgrid(self.k1,self.k2)
+
+        self.kk1 = np.fft.fftshift(self.kk1,axes=0)
+        self.kk2 = np.fft.fftshift(self.kk2,axes=0)
+        self.kappa2 = self.kk1**2 + self.kk2**2
+        self.kappa = np.sqrt(self.kappa2)
+
+
+    def calc_cospectrum(self):
+        """ calculates the spectrum """
+        self.phi1h = np.fft.rfft2(self.phi1)
+        self.phi2h = np.fft.rfft2(self.phi2)
+        self.cospec = 2.*(self.phi1h*self.phi2h.conj()).real/ (self.dk1*self.dk2)\
+                / (self.n1*self.n2)**2
+
 class TWODimensional_spec(object):
     """ A class that represent a two dimensional spectrum
             for real signals """
@@ -76,6 +164,9 @@ class TWODimensional_spec(object):
         self.phi = phi  # two dimensional real field
         self.d1 = d1
         self.d2 = d2
+        print(phi.shape)
+        #self.n2 = np.size(phi, axis=0)
+        #self.n1 = np.size(phi, axis=1)
         self.n2,self.n1 = phi.shape
         self.L1 = d1*self.n1
         self.L2 = d2*self.n2
